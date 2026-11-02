@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>바둑</title>
+<style>
+  /* 아이폰 사파리: 버튼을 누르다 글자가 선택되거나 길게 눌러 복사 메뉴가 뜨지 않게 */
+  *, *::before, *::after { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    width:100%; height:100%; overflow:hidden; background:#120c06;
+    font-family:-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; color:#fff;
+    touch-action:none;
+  }
+  #stage { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:6px 8px; }
+  #wrap { position:relative; background:#000; }
+  #game { display:block; touch-action:none; image-rendering:pixelated; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:14px; background:rgba(0,0,0,.82); }
+  #overlay.hidden { display:none; }
+  #overlay h1 { font-size:46px; font-weight:900; letter-spacing:.06em; color:#f0d8a0; text-shadow:0 3px 0 #6a4a1a; }
+  #overlay h2 { font-size:24px; font-weight:900; }
+  #overlay p { font-size:13px; color:#e6e6e6; line-height:1.6; }
+  #overlay .big { font-size:18px; font-weight:800; color:#ffd23a; }
+  #overlay .help { font-size:12px; color:#bdbdbd; line-height:1.7; }
+  #overlay button { margin-top:6px; background:linear-gradient(180deg,#f8e6bc,#d8a850); color:#2a1600; font-weight:900; font-size:17px; border:none; border-radius:999px; padding:12px 34px; box-shadow:0 4px 0 #6a4a1a; cursor:pointer; }
+  #overlay button:active { transform:translateY(3px); box-shadow:0 1px 0 #6a4a1a; }
+  #overlay .lv { display:flex; gap:10px; margin-top:6px; }
+  #overlay .lv button { margin-top:0; padding:10px 18px; font-size:16px; }
+  #overlay .lv small { display:block; font-size:10px; font-weight:600; opacity:.75; margin-top:2px; }
+  #overlay button.sub { background:rgba(255,255,255,.12); color:#fff; box-shadow:none; border:2px solid rgba(255,255,255,.3); }
+  #overlay button:disabled { opacity:.4; }
+  #overlay h2 { margin:0; }
+  #overlay .note { font-size:11px; color:#aab; }
+  #top { position:absolute; right:3px; top:2px; display:flex; gap:6px; z-index:2; }
+  #top button { position:relative; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.25); color:#fff; width:30px; height:30px; border-radius:8px; font-size:13px; cursor:pointer; }
+  #top button::after { content:''; position:absolute; inset:-7px -4px; }
+  /* 조작판 */
+  #wrap { width:100%; max-width:440px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #game { width:100%; max-width:420px; height:auto; touch-action:none; }
+  #info { font-size:13px; font-weight:700; color:#f0d8a0; text-align:center; min-height:34px; line-height:1.4; }
+  #controls { display:flex; flex-direction:column; gap:6px; width:100%; max-width:420px; }
+  #controls .row { display:flex; gap:6px; }
+  #controls button { flex:1; height:46px; border-radius:12px; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; font-size:14px; font-weight:800; touch-action:manipulation; padding:0 2px; }
+  #controls button:disabled { opacity:.35; }
+  #btnPlay { flex:1.6; background:linear-gradient(180deg,#8ae8a8,#2a9a52); } #btnPass { background:linear-gradient(180deg,#ffd98a,#d89a2a); color:#2a1a00; }
+  #btnHint { background:linear-gradient(180deg,#d8b0ff,#7a4ac4); } #btnResign { background:linear-gradient(180deg,#e88a8a,#b03a3a); }
+  .hidden { display:none !important; }
+  #top { position:fixed; right:6px; top:4px; z-index:5; }
+  #overlay { z-index:6; position:fixed; inset:0; }
+  #overlay .lv { display:flex; gap:10px; margin-top:6px; }
+  #overlay .lv button { margin-top:0; padding:10px 18px; font-size:16px; }
+  #overlay .lv small { display:block; font-size:10px; font-weight:600; opacity:.75; margin-top:2px; }
+  #overlay .note { font-size:11px; color:#aab; }
+  #overlay .pick { display:flex; gap:14px; margin-top:4px; font-size:14px; }
+  #overlay .pick label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .pc { display:inline; } .touch { display:none; }
+  @media (pointer:coarse) { .pc { display:none; } .touch { display:inline; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="wrap">
+    <div id="info"></div>
+    <canvas id="game"></canvas>
+    <div id="controls">
+      <div class="row"><button id="btnPlay">착수</button><button id="btnPass">패스</button></div>
+      <div class="row"><button id="btnUndo">무르기</button><button id="btnHint">추천</button><button id="btnResign">기권</button></div>
+      <div class="row hidden" id="scoreRow"><button id="btnFinish">계가 확정</button><button id="btnContinue">계속 두기</button></div>
+    </div>
+    <div id="top">
+      <button id="muteBtn" title="소리 (M)">🔊</button>
+      <button id="pauseBtn" title="일시정지 (P)">⏸</button>
+    </div>
+    <div id="overlay">
+      <h1>바둑</h1>
+      <p>9×9 판에서 컴퓨터와 한 판! ⚫⚪<br>한국식 계가(집 + 잡은 돌 + 덤 6.5)</p>
+      <div class="pick"><label><input type="radio" name="color" value="1" checked> 흑(먼저)</label><label><input type="radio" name="color" value="2"> 백(나중)</label></div>
+      <div class="help">
+        <span class="pc">⌨️ 점을 누른 뒤 한 번 더 누르거나 Enter 로 착수 · P 패스 · U 무르기</span>
+        <span class="touch">👆 점을 눌러 고른 뒤 「착수」 버튼으로 놓아요</span>
+      </div>
+      <div class="lv"><button id="startBtn" data-level="easy">쉬움<small>컴퓨터가 빨리 두고 서툴러요</small></button><button id="startBtn2" data-level="normal">보통<small>컴퓨터가 오래 생각해요</small></button></div>
+    </div>
+  </div>
+</div>
+<script src="logic.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
